@@ -1,0 +1,239 @@
+import React, { useState, useMemo } from "react";
+
+// ---- palette (analyst-instrument look; inline styles so it renders regardless of Tailwind) ----
+const C = {
+  bg: "#EEF0F3",
+  panel: "#FFFFFF",
+  ink: "#1A1D24",
+  sub: "#5B626D",
+  hair: "#DDE1E7",
+  line: "#C6CCD4",
+  accent: "#0E7C86",   // computed outputs
+  accentSoft: "#0E7C8618",
+  warn: "#C8811A",      // outside band
+  bad: "#B4453C",       // well outside
+  good: "#2E7D57",      // inside band
+  bandFill: "#0E7C8614",
+};
+
+const money = (n) => {
+  if (!isFinite(n)) return "—";
+  const abs = Math.abs(n);
+  if (abs >= 1e9) return "$" + (n / 1e9).toFixed(2) + "B";
+  if (abs >= 1e6) return "$" + (n / 1e6).toFixed(2) + "M";
+  if (abs >= 1e3) return "$" + (n / 1e3).toFixed(1) + "K";
+  return "$" + n.toFixed(0);
+};
+
+const pct = (x, d = 2) => (isFinite(x) ? (x * 100).toFixed(d) + "%" : "—");
+
+const Field = ({ label, hint, children }) => (
+  <div style={{ marginBottom: 18 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+      <label style={{ fontSize: 12, letterSpacing: 0.3, color: C.ink, fontWeight: 600 }}>{label}</label>
+      {hint && <span style={{ fontSize: 11, color: C.sub }}>{hint}</span>}
+    </div>
+    {children}
+  </div>
+);
+
+const Slider = ({ value, min, max, step, onChange, format }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+    <input
+      type="range" min={min} max={max} step={step} value={value}
+      onChange={(e) => onChange(parseFloat(e.target.value))}
+      style={{ flex: 1, accentColor: C.accent }}
+    />
+    <span style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: 13, color: C.ink, minWidth: 54, textAlign: "right" }}>
+      {format(value)}
+    </span>
+  </div>
+);
+
+const Stat = ({ label, value, tone }) => (
+  <div style={{ padding: "10px 12px", background: C.bg, borderRadius: 6, border: `1px solid ${C.hair}` }}>
+    <div style={{ fontSize: 10.5, color: C.sub, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 3 }}>{label}</div>
+    <div style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: 16, fontWeight: 600, color: tone || C.ink }}>{value}</div>
+  </div>
+);
+
+export default function SomIntensitySizer() {
+  const [sam, setSam] = useState(8_000_000_000);
+  const [shares, setShares] = useState([42, 21, 12, 6]); // competitor shares, %
+  const [switching, setSwitching] = useState(0.6); // higher = stickier incumbents
+  const [barriers, setBarriers] = useState(0.5);    // higher = harder entry
+  const [diff, setDiff] = useState(0.55);           // your differentiation
+  const [ramp, setRamp] = useState(0.2);            // fraction of long-run share won in 1-3 yrs
+
+  const derived = useMemo(() => {
+    const clean = shares.filter((s) => s > 0);
+    const sumShares = clean.reduce((a, b) => a + b, 0);
+    const fracs = clean.map((s) => s / 100);
+    const hhiFrac = fracs.reduce((a, b) => a + b * b, 0);
+    const hhi = hhiFrac * 10000;
+    const nEff = hhiFrac > 0 ? 1 / hhiFrac : Infinity;
+    const cr4 = [...clean].sort((a, b) => b - a).slice(0, 4).reduce((a, b) => a + b, 0);
+
+    let conc = "Unconcentrated";
+    if (hhi >= 2500) conc = "Highly concentrated";
+    else if (hhi >= 1500) conc = "Moderately concentrated";
+
+    // fair-share anchor: average entrant steady-state ≈ HHI (fractional)
+    const sFair = hhiFrac;
+    // contestability: sticky incumbents & high barriers cut it; your differentiation lifts it
+    const contest = Math.max(0, Math.min(1, (1 - switching) * 0.45 + (1 - barriers) * 0.3 + diff * 0.25));
+    const somPct = sFair * contest * ramp;      // as fraction of SAM
+    const som = sam * somPct;
+
+    // sanity band 1–5% of SAM
+    let bandTone = C.good, bandNote = "Inside the 1–5% credibility band";
+    if (somPct * 100 < 1) { bandTone = C.warn; bandNote = "Below 1% — defensible, but check you're not underclaiming"; }
+    else if (somPct * 100 > 5) { bandTone = C.bad; bandNote = "Above 5% — reads as aggressive to investors; pressure-test inputs"; }
+
+    return { sumShares, hhi, hhiFrac, nEff, cr4, conc, sFair, contest, somPct, som, bandTone, bandNote };
+  }, [sam, shares, switching, barriers, diff, ramp]);
+
+  const setShare = (i, v) => setShares((prev) => prev.map((s, idx) => (idx === i ? v : s)));
+  const addShare = () => setShares((prev) => [...prev, 5]);
+  const removeShare = (i) => setShares((prev) => prev.filter((_, idx) => idx !== i));
+
+  // funnel geometry
+  const somOfSam = derived.somPct;
+  const bandLo = 0.01, bandHi = 0.05;
+
+  return (
+    <div style={{ background: C.bg, minHeight: "100%", padding: "28px 20px", color: C.ink,
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
+      <div style={{ maxWidth: 920, margin: "0 auto" }}>
+
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: 11, color: C.accent, letterSpacing: 1.5, marginBottom: 6 }}>
+            SOM · COMPETITIVE-INTENSITY MODEL
+          </div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, letterSpacing: -0.3 }}>Obtainable-share sizer</h1>
+          <p style={{ fontSize: 13.5, color: C.sub, marginTop: 6, maxWidth: 640, lineHeight: 1.5 }}>
+            Decomposes the SOM slider into factors you can each defend: a concentration-anchored fair share, a
+            contestability haircut, and a near-term ramp. Every number below is an assumption made explicit.
+          </p>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+
+          {/* ---- INPUTS ---- */}
+          <div style={{ background: C.panel, border: `1px solid ${C.hair}`, borderRadius: 10, padding: 20 }}>
+            <Field label="Serviceable available market (SAM)" hint="annual, $">
+              <input
+                type="number" value={sam}
+                onChange={(e) => setSam(parseFloat(e.target.value) || 0)}
+                style={{ width: "100%", padding: "9px 11px", border: `1px solid ${C.line}`, borderRadius: 6,
+                  fontFamily: "ui-monospace, Menlo, monospace", fontSize: 14, color: C.ink, boxSizing: "border-box" }}
+              />
+              <div style={{ fontSize: 11.5, color: C.sub, marginTop: 4, fontFamily: "ui-monospace, Menlo, monospace" }}>{money(sam)}</div>
+            </Field>
+
+            <Field label="Competitor shares" hint={`entered sum: ${derived.sumShares}%`}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {shares.map((s, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11, color: C.sub, width: 16 }}>{i + 1}</span>
+                    <input
+                      type="range" min={0} max={100} step={1} value={s}
+                      onChange={(e) => setShare(i, parseFloat(e.target.value))}
+                      style={{ flex: 1, accentColor: C.accent }}
+                    />
+                    <span style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12.5, width: 40, textAlign: "right" }}>{s}%</span>
+                    <button onClick={() => removeShare(i)}
+                      style={{ border: "none", background: "none", color: C.sub, cursor: "pointer", fontSize: 15, lineHeight: 1, padding: "0 2px" }}>×</button>
+                  </div>
+                ))}
+              </div>
+              <button onClick={addShare}
+                style={{ marginTop: 9, fontSize: 12, color: C.accent, background: C.accentSoft, border: `1px solid ${C.accent}40`,
+                  borderRadius: 5, padding: "5px 10px", cursor: "pointer" }}>+ Add competitor</button>
+              {derived.sumShares > 100 &&
+                <div style={{ fontSize: 11.5, color: C.bad, marginTop: 7 }}>Shares sum above 100% — HHI is inflated. Trim to real shares.</div>}
+            </Field>
+          </div>
+
+          {/* ---- CONTESTABILITY + RAMP ---- */}
+          <div style={{ background: C.panel, border: `1px solid ${C.hair}`, borderRadius: 10, padding: 20 }}>
+            <div style={{ fontSize: 11, color: C.sub, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 14 }}>
+              Contestability — what HHI can't see
+            </div>
+            <Field label="Incumbent switching costs" hint="higher = stickier">
+              <Slider value={switching} min={0} max={1} step={0.05} onChange={setSwitching} format={(v) => v.toFixed(2)} />
+            </Field>
+            <Field label="Barriers to entry" hint="higher = harder">
+              <Slider value={barriers} min={0} max={1} step={0.05} onChange={setBarriers} format={(v) => v.toFixed(2)} />
+            </Field>
+            <Field label="Your differentiation" hint="higher = stronger">
+              <Slider value={diff} min={0} max={1} step={0.05} onChange={setDiff} format={(v) => v.toFixed(2)} />
+            </Field>
+            <div style={{ height: 1, background: C.hair, margin: "6px 0 16px" }} />
+            <Field label="Near-term ramp (1–3 yr)" hint="share of long-run capture">
+              <Slider value={ramp} min={0.05} max={1} step={0.05} onChange={setRamp} format={(v) => v.toFixed(2)} />
+            </Field>
+            <div style={{ fontSize: 11.5, color: C.sub, lineHeight: 1.5, marginTop: 4 }}>
+              Contestability coefficient <b style={{ color: C.ink, fontFamily: "ui-monospace, Menlo, monospace" }}>{derived.contest.toFixed(2)}</b> —
+              combines the three sliders. It discounts the fair-share anchor for stickiness and lock-in.
+            </div>
+          </div>
+        </div>
+
+        {/* ---- CONCENTRATION READOUT ---- */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 20 }}>
+          <Stat label="HHI" value={isFinite(derived.hhi) ? Math.round(derived.hhi).toLocaleString() : "—"} />
+          <Stat label="Structure" value={derived.conc} tone={derived.hhi >= 2500 ? C.warn : C.ink} />
+          <Stat label="CR4" value={derived.cr4.toFixed(0) + "%"} />
+          <Stat label="Eff. # firms" value={isFinite(derived.nEff) ? derived.nEff.toFixed(1) : "—"} />
+        </div>
+
+        {/* ---- OUTPUT PANEL ---- */}
+        <div style={{ background: C.panel, border: `1px solid ${C.hair}`, borderRadius: 10, padding: 22, marginTop: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "auto auto auto auto auto", gap: 0, alignItems: "center",
+            fontFamily: "ui-monospace, Menlo, monospace", fontSize: 13, color: C.sub, marginBottom: 20, flexWrap: "wrap" }}>
+            <span>SAM {money(sam)}</span>
+            <span style={{ padding: "0 10px", color: C.line }}>×</span>
+            <span title="fair-share anchor ≈ HHI">S_fair {pct(derived.sFair)}</span>
+            <span style={{ padding: "0 10px", color: C.line }}>×</span>
+            <span title="contestability × ramp">C·R {pct(derived.contest * ramp)}</span>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginBottom: 4 }}>
+            <div>
+              <div style={{ fontSize: 11, color: C.sub, letterSpacing: 0.5, textTransform: "uppercase" }}>Estimated SOM</div>
+              <div style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: 34, fontWeight: 700, color: C.accent, lineHeight: 1.1 }}>
+                {money(derived.som)}
+              </div>
+            </div>
+            <div style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: 15, color: derived.bandTone }}>
+              {pct(derived.somPct)} of SAM
+            </div>
+          </div>
+
+          {/* band visual */}
+          <div style={{ marginTop: 18 }}>
+            <div style={{ position: "relative", height: 34, background: C.bg, borderRadius: 6, border: `1px solid ${C.hair}`, overflow: "hidden" }}>
+              {/* 1-5% band */}
+              <div style={{ position: "absolute", left: `${bandLo * 100 * 4}%`, width: `${(bandHi - bandLo) * 100 * 4}%`,
+                top: 0, bottom: 0, background: C.bandFill, borderLeft: `1px dashed ${C.accent}80`, borderRight: `1px dashed ${C.accent}80` }} />
+              {/* som marker */}
+              <div style={{ position: "absolute", left: `min(${somOfSam * 100 * 4}%, 99%)`, top: -3, bottom: -3, width: 2, background: derived.bandTone }} />
+              <div style={{ position: "absolute", left: 8, top: 9, fontSize: 10.5, color: C.sub, fontFamily: "ui-monospace, Menlo, monospace" }}>0%</div>
+              <div style={{ position: "absolute", right: 8, top: 9, fontSize: 10.5, color: C.sub, fontFamily: "ui-monospace, Menlo, monospace" }}>25%+</div>
+              <div style={{ position: "absolute", left: `${0.03 * 100 * 4}%`, top: 9, fontSize: 10, color: C.accent, transform: "translateX(-50%)", fontFamily: "ui-monospace, Menlo, monospace" }}>1–5% band</div>
+            </div>
+            <div style={{ fontSize: 12.5, color: derived.bandTone, marginTop: 9, fontWeight: 500 }}>{derived.bandNote}</div>
+          </div>
+        </div>
+
+        <p style={{ fontSize: 11.5, color: C.sub, lineHeight: 1.6, marginTop: 16 }}>
+          Model: SOM = SAM × S_fair × Contestability × Ramp, where S_fair (the fair-share anchor) equals fractional HHI —
+          an <i>average</i> entrant's long-run share. It centers the estimate; it doesn't predict a differentiated or weak
+          entrant's outcome. The 1–5% band is a heuristic sanity check, not a rule. Every coefficient is a judgment call —
+          the point is that they're now visible and arguable, not that they're right.
+        </p>
+      </div>
+    </div>
+  );
+}
