@@ -69,6 +69,7 @@ The value of the tool is that every assumption is made explicit and arguable —
 
 Candidate features, roughly in priority order:
 
+- **Conjoint-measured attractiveness** — accept share-of-preference outputs from a conjoint study and convert them to the relative-attractiveness input `r`, replacing the judgment estimate with measured data. This closes the tool's one irreducible soft spot: `r` is the only input no model can supply, and a conjoint's logit share-of-preference is exactly a Bell-Keeney-Little attraction estimate, so it drops straight in. *Requires a conjoint study — not yet available, so the input mode is deferred until real outputs exist.*
 - **Monte Carlo range** — treat coefficients as distributions and output a SOM confidence interval instead of a point estimate.
 - **Win-rate calibration** — back the contestability coefficient out of historical win rates against named competitors, rather than guessing the sliders.
 - **Bottom-up cross-check** — add a `customers × ACV × reachable geography` path and flag whether top-down and bottom-up converge.
