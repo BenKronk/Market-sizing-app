@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Market Story — Diligence View</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#D7DFE8; --panel:#FFFFFF; --panel-2:#EBF0F6; --line:#B6C3D2; --line-soft:#CFD8E3;
+    --text:#0E1D2C; --muted:#455567; --faint:#6E7E8F;
+    --blue:#2A63A8; --blue-deep:#153C6B; --blue-soft:rgba(42,99,168,0.12);
+    --green:#237A5C; --gold:#9C6E15; --red:#A83B2C;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,sans-serif;-webkit-font-smoothing:antialiased;}
+  #root{min-height:100vh;}
+  .mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;}
+  .wrap{max-width:1120px;margin:0 auto;padding:44px 24px 72px;}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.28em;color:var(--blue);text-transform:uppercase;margin-bottom:14px;}
+  .title{font-family:"Instrument Serif",serif;font-size:52px;line-height:1.02;font-weight:400;margin:0;letter-spacing:.2px;color:var(--text);}
+  .title em{font-style:italic;color:var(--blue-deep);}
+  .lede{color:var(--muted);font-size:15px;line-height:1.55;max-width:620px;margin:16px 0 0;}
+  .rule{height:1px;background:linear-gradient(90deg,var(--line),transparent);margin:36px 0 30px;}
+  .grid{display:grid;grid-template-columns:0.82fr 1.18fr;gap:26px;align-items:start;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px;box-shadow:0 2px 6px rgba(14,29,44,0.09);}
+  .card+.card{margin-top:20px;}
+  .card.centered{max-width:600px;margin-left:auto;margin-right:auto;}
+  .card-eyebrow{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);margin-bottom:18px;}
+  .field{margin-bottom:20px;}
+  .field:last-child{margin-bottom:0;}
+  .field-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px;}
+  .field-label{font-size:13px;font-weight:500;color:var(--text);}
+  .field-hint{font-size:11px;color:var(--faint);font-family:"IBM Plex Mono",monospace;}
+  input[type="number"]{width:100%;padding:11px 13px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;color:var(--text);font-family:"IBM Plex Mono",monospace;font-size:15px;outline:none;transition:border-color .15s;}
+  input[type="number"]:focus{border-color:var(--blue);}
+  .num-echo{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--blue-deep);margin-top:6px;}
+  input[type="range"]{-webkit-appearance:none;appearance:none;height:4px;border-radius:3px;background:var(--line);outline:none;cursor:pointer;}
+  input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--blue);border:2px solid var(--panel);box-shadow:0 0 0 1px var(--blue);transition:transform .12s;}
+  input[type="range"]::-webkit-slider-thumb:hover{transform:scale(1.18);}
+  input[type="range"]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--blue);border:2px solid var(--panel);}
+  input[type="range"]:focus-visible{outline:2px solid var(--blue);outline-offset:4px;}
+  .slider-row{display:flex;align-items:center;gap:13px;}
+  .slider-row input[type="range"]{flex:1;}
+  .slider-val{font-family:"IBM Plex Mono",monospace;font-size:13px;min-width:52px;text-align:right;color:var(--text);}
+  .share-row{display:flex;align-items:center;gap:9px;}
+  .share-idx{font-size:11px;color:var(--faint);width:15px;font-family:"IBM Plex Mono",monospace;}
+  .share-pct{font-family:"IBM Plex Mono",monospace;font-size:12.5px;width:38px;text-align:right;}
+  .share-x{border:none;background:none;color:var(--faint);cursor:pointer;font-size:16px;line-height:1;padding:0 3px;transition:color .12s;}
+  .share-x:hover{color:var(--red);}
+  .add-btn{margin-top:11px;font-size:12px;color:var(--blue);background:var(--blue-soft);border:1px solid rgba(47,109,176,0.30);border-radius:7px;padding:6px 12px;cursor:pointer;font-family:"IBM Plex Sans",sans-serif;transition:background .15s;}
+  .add-btn:hover{background:rgba(47,109,176,0.18);}
+  .warn-line{font-size:11.5px;color:var(--red);margin-top:9px;}
+  .note-line{font-size:11px;color:var(--faint);margin-top:8px;line-height:1.5;}
+  .export-bar{display:flex;gap:9px;justify-content:flex-end;margin-bottom:18px;align-items:center;flex-wrap:wrap;}
+  .exp-btn{font-family:"IBM Plex Sans",sans-serif;font-size:12px;color:var(--text);background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:7px 13px;cursor:pointer;transition:border-color .15s,color .15s;}
+  .exp-btn:hover{border-color:var(--blue);color:var(--blue-deep);}
+  .exp-msg{font-size:11.5px;font-family:"IBM Plex Mono",monospace;margin-right:auto;}
+  .hero-label{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);margin-bottom:8px;}
+  .hero-figure{font-family:"IBM Plex Mono",monospace;font-size:52px;font-weight:600;line-height:1;color:var(--blue-deep);}
+  .hero-sub{font-size:13px;color:var(--muted);margin-top:10px;line-height:1.5;}
+  .verdict{font-size:13.5px;margin-top:16px;font-weight:500;line-height:1.5;padding:12px 14px;border-radius:9px;border:1px solid;background:var(--panel-2);}
+  .srcrow{display:flex;align-items:center;gap:6px;margin-top:9px;}
+  .srclabel{font-size:9.5px;color:var(--faint);font-family:"IBM Plex Mono",monospace;letter-spacing:.12em;text-transform:uppercase;}
+  .srcbtn{font-size:10px;font-family:"IBM Plex Mono",monospace;padding:3px 8px;border:1px solid var(--line);border-radius:5px;background:var(--panel-2);color:var(--muted);cursor:pointer;letter-spacing:.05em;}
+  .srcbtn.on-measured{border-color:var(--green);color:var(--green);background:rgba(46,139,107,0.09);}
+  .srcbtn.on-estimated{border-color:var(--gold);color:var(--gold);background:rgba(176,125,30,0.09);}
+  .srcbtn.on-guessed{border-color:var(--red);color:var(--red);background:rgba(187,74,58,0.09);}
+  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+  .seg button{flex:1;font-size:12px;padding:8px 4px;background:var(--panel);border:none;border-right:1px solid var(--line);color:var(--muted);cursor:pointer;font-family:"IBM Plex Sans",sans-serif;}
+  .seg button:last-child{border-right:none;}
+  .seg button.on{background:var(--blue);color:#fff;font-weight:500;}
+  .cases{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .cases th{font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);}
+  .cases th.l,.cases td.l{text-align:left;}
+  .cases td{padding:9px 8px;border-bottom:1px solid var(--line-soft);font-family:"IBM Plex Mono",monospace;text-align:right;}
+  .cases td.name{font-family:"IBM Plex Sans",sans-serif;color:var(--text);font-weight:500;}
+  .cases tr.base td{background:var(--blue-soft);}
+  .valid-item{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;padding:8px 0;border-bottom:1px solid var(--line-soft);color:var(--muted);line-height:1.45;}
+  .valid-item:last-child{border-bottom:none;}
+  .valid-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex:none;}
+  .conf{display:flex;align-items:center;gap:12px;margin:2px 0 16px;}
+  .conf-track{flex:1;height:8px;border-radius:5px;background:var(--line);overflow:hidden;}
+  .conf-fill{height:100%;transition:width .3s;}
+  .conf-txt{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;}
+  .narrative{font-size:14px;line-height:1.65;color:var(--text);}
+  .narrative b{color:var(--blue-deep);}
+  .chart-wrap{width:100%;}
+  .interval{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--muted);margin-top:14px;}
+  .interval b{color:var(--text);}
+  .market-bar{display:flex;height:24px;border-radius:7px;overflow:hidden;border:1px solid var(--line);}
+  .market-seg{height:100%;border-right:2px solid var(--panel);transition:width .4s cubic-bezier(.2,.7,.2,1);}
+  .market-tail{height:100%;background-image:repeating-linear-gradient(45deg,#C3CED9 0 6px,#E4EAF1 6px 12px);}
+  .market-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:11px;font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);}
+  .legend-item{display:flex;align-items:center;gap:6px;}
+  .legend-dot{width:9px;height:9px;border-radius:2px;}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-top:22px;}
+  .stat{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:9px;padding:12px 13px;}
+  .stat-label{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:5px;}
+  .stat-val{font-family:"IBM Plex Mono",monospace;font-size:16px;font-weight:600;}
+  .equation{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);margin-top:22px;}
+  .footnote{font-size:11.5px;color:var(--faint);line-height:1.65;margin-top:24px;}
+  .footnote i{color:var(--muted);}
+  @media (max-width:900px){.grid{grid-template-columns:1fr;}.title{font-size:38px;}.stats{grid-template-columns:repeat(2,1fr);}}
+  @media (prefers-reduced-motion:reduce){*{transition:none !important;}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo } = React;
+const SEG_COLORS=["#123A63","#1E5290","#3A72AD","#5B93C9","#7DABD6","#9EC1E2"];
+const CH={curve:"#235A97",area:"rgba(35,90,151,0.11)",target:"#153C6B",ceiling:"#93A2B2",
+  axis:"#A2B0BF",tick:"#5F6F80",faint:"#6E7E8F",band:"rgba(42,99,168,0.13)",bandEdge:"#7398C0",par:"#153C6B"};
+const SCEN={slow:{p:0.01,q:0.25,label:"Slow"},typical:{p:0.03,q:0.38,label:"Typical"},fast:{p:0.05,q:0.50,label:"Fast"}};
+const SRC_W={measured:1,estimated:0.5,guessed:0};
+
+const money=(n)=>{ if(!isFinite(n))return "-"; const a=Math.abs(n);
+  if(a>=1e9)return "$"+(n/1e9).toFixed(2)+"B"; if(a>=1e6)return "$"+(n/1e6).toFixed(1)+"M";
+  if(a>=1e3)return "$"+(n/1e3).toFixed(0)+"K"; return "$"+n.toFixed(0); };
+const moneyAx=(n)=>{ const a=Math.abs(n);
+  if(a>=1e9)return "$"+(n/1e9).toFixed(1)+"B"; if(a>=1e6)return "$"+Math.round(n/1e6)+"M";
+  if(a>=1e3)return "$"+Math.round(n/1e3)+"K"; return "$"+Math.round(n); };
+const pct=(x,d=1)=>isFinite(x)?(x*100).toFixed(d)+"%":"-";
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const bassF=(p,q,t)=>{ const e=Math.exp(-(p+q)*t); return (1-e)/(1+(q/p)*e); };
+const shareOfR=(r,Neff)=> isFinite(Neff)? r/(Neff+r) : 0;
+const somOf=(r,SAM,Neff,F)=> SAM*shareOfR(r,Neff)*F;
+
+function Field({label,hint,children}){
+  return (<div className="field"><div className="field-head"><span className="field-label">{label}</span>
+    {hint&&<span className="field-hint">{hint}</span>}</div>{children}</div>);
+}
+function Slider({value,min,max,step,onChange,fmt}){
+  return (<div className="slider-row"><input type="range" min={min} max={max} step={step} value={value}
+    onChange={(e)=>onChange(parseFloat(e.target.value))}/><span className="slider-val">{fmt(value)}</span></div>);
+}
+function SourceTag({value,onChange}){
+  const opts=[["measured","MEASURED"],["estimated","ESTIMATED"],["guessed","GUESSED"]];
+  return (<div className="srcrow"><span className="srclabel">source</span>
+    {opts.map(([k,lab])=>(<button key={k} className={"srcbtn"+(value===k?" on-"+k:"")} onClick={()=>onChange(k)}>{lab}</button>))}</div>);
+}
+
+function Chart({SAM,Neff,F,target,rLow,rHigh,rStar,reachable,tone}){
+  const W=640,H=264,PADL=58,PADR=22,PADT=44,PADB=42;
+  const x0=PADL, x1=W-PADR, y0=H-PADB, yTop=PADT;
+  const plotW=x1-x0, plotH=y0-yTop;
+  const ceiling=SAM*F;
+  let rMax=Math.max(3, Math.ceil(rHigh*1.3), reachable&&isFinite(rStar)?Math.ceil(rStar*1.3):0);
+  rMax=Math.min(rMax,8);
+  const yMax=(Math.max(ceiling,target)*1.08)||1;
+  const xS=(r)=>x0+(r/rMax)*plotW;
+  const yS=(v)=>y0-(Math.min(v,yMax)/yMax)*plotH;
+  const pts=[]; const N=64;
+  for(let i=0;i<=N;i++){ const r=rMax*i/N; pts.push([xS(r), yS(somOf(r,SAM,Neff,F))]); }
+  const line="M"+pts.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" L");
+  const area=line+" L"+xS(rMax).toFixed(1)+","+y0+" L"+x0+","+y0+" Z";
+  const xticks=[]; for(let k=0;k<=rMax;k++) xticks.push(k);
+  const somLow=somOf(rLow,SAM,Neff,F), somHigh=somOf(rHigh,SAM,Neff,F);
+  const beX = reachable&&isFinite(rStar)&&rStar<=rMax ? xS(rStar) : null;
+  const beY = beX!==null ? yS(target) : null;
+  const calloutX = beX!==null ? clamp(beX, x0+42, x1-42) : null;
+  const calloutY = 26;
+  return (
+   <svg viewBox={"0 0 "+W+" "+H} width="100%" style={{display:"block"}} role="img" aria-label="Required advantage vs SOM">
+     <rect x={xS(rLow)} y={yTop} width={Math.max(0,xS(rHigh)-xS(rLow))} height={plotH} fill={CH.band}/>
+     <line x1={xS(rLow)} y1={yTop} x2={xS(rLow)} y2={y0} stroke={CH.bandEdge} strokeWidth="1" strokeDasharray="2 3"/>
+     <line x1={xS(rHigh)} y1={yTop} x2={xS(rHigh)} y2={y0} stroke={CH.bandEdge} strokeWidth="1" strokeDasharray="2 3"/>
+     <text x={(xS(rLow)+xS(rHigh))/2} y={y0-6} textAnchor="middle" fontFamily="IBM Plex Mono" fontSize="9" fill={CH.par}>your range</text>
+     <line x1={x0} y1={yS(ceiling)} x2={x1} y2={yS(ceiling)} stroke={CH.ceiling} strokeWidth="1" strokeDasharray="2 3"/>
+     <text x={x1} y={yS(ceiling)-5} textAnchor="end" fontFamily="IBM Plex Mono" fontSize="9" fill={CH.faint}>ceiling {moneyAx(ceiling)}</text>
+     <path d={area} fill={CH.area}/>
+     <path d={line} fill="none" stroke={CH.curve} strokeWidth="2.2"/>
+     <line x1={x0} y1={yS(target)} x2={x1} y2={yS(target)} stroke={CH.target} strokeWidth="1.2" strokeDasharray="5 4" opacity="0.85"/>
+     <text x={x1} y={yS(target)+13} textAnchor="end" fontFamily="IBM Plex Mono" fontSize="9.5" fill={CH.target}>target {moneyAx(target)}</text>
+     {beX!==null&&(
+       <g>
+         <line x1={beX} y1={beY} x2={calloutX} y2={calloutY+6} stroke={tone} strokeWidth="1"/>
+         <circle cx={beX} cy={beY} r="4.5" fill={tone}/>
+         <circle cx={beX} cy={beY} r="8" fill="none" stroke={tone} strokeWidth="1" opacity="0.4"/>
+         <text x={calloutX} y={calloutY} textAnchor="middle" fontFamily="IBM Plex Mono" fontSize="11" fontWeight="600" fill={tone}>required  {rStar.toFixed(2)}x</text>
+       </g>
+     )}
+     <circle cx={xS(rLow)} cy={yS(somLow)} r="3.2" fill={CH.tick}/>
+     <circle cx={xS(rHigh)} cy={yS(somHigh)} r="3.2" fill={CH.tick}/>
+     <line x1={x0} y1={y0} x2={x1} y2={y0} stroke={CH.axis} strokeWidth="1"/>
+     {xticks.map(k=>(
+       <g key={k}>
+         <line x1={xS(k)} y1={y0} x2={xS(k)} y2={y0+4} stroke={CH.axis} strokeWidth="1"/>
+         <text x={xS(k)} y={y0+16} textAnchor="middle" fontFamily="IBM Plex Mono" fontSize="9.5"
+           fill={k===1?CH.par:CH.tick} fontWeight={k===1?"600":"400"}>{k===1?"1x par":(k+"x")}</text>
+       </g>
+     ))}
+     <text x={(x0+x1)/2} y={H-4} textAnchor="middle" fontFamily="IBM Plex Mono" fontSize="9.5" fill={CH.tick}>required win advantage  (x average competitor)</text>
+     <text x={16} y={(yTop+y0)/2} textAnchor="middle" fontFamily="IBM Plex Mono" fontSize="9.5" fill={CH.tick} transform={"rotate(-90 16 "+((yTop+y0)/2)+")"}>market captured</text>
+   </svg>
+  );
+}
+
+function App(){
+  const [sam,setSam]=useState(500000000);
+  const [shares,setShares]=useState([60,26,7,7]);
+  const [target,setTarget]=useState(100000000);
+  const [t,setT]=useState(4);
+  const [adoption,setAdoption]=useState("typical");
+  const [rLow,setRLow]=useState(0.8);
+  const [rHigh,setRHigh]=useState(2.0);
+  const [winPct,setWinPct]=useState(0);
+  const [tags,setTags]=useState({sam:"estimated",shares:"estimated",target:"guessed",adoption:"estimated",advantage:"guessed"});
+  const [expMsg,setExpMsg]=useState({text:"",tone:"var(--faint)"});
+  const setTag=(k,v)=>setTags(p=>({...p,[k]:v}));
+
+  const d=useMemo(()=>{
+    const clean=shares.filter(s=>s>0);
+    const sum=clean.reduce((a,b)=>a+b,0);
+    const hhiFrac=clean.reduce((a,s)=>a+(s/100)*(s/100),0);
+    const hhi=hhiFrac*10000;
+    const Neff=hhiFrac>0?1/hhiFrac:Infinity;
+    const cr4=[...clean].sort((a,b)=>b-a).slice(0,4).reduce((a,b)=>a+b,0);
+    let conc="Unconcentrated"; if(hhi>=2500)conc="Highly concentrated"; else if(hhi>=1500)conc="Moderately concentrated";
+
+    const calc=(key)=>{ const {p,q}=SCEN[key]; const F=bassF(p,q,t); const ceiling=sam*F;
+      const sReq=target/(sam*F); const reachable=sReq<1 && isFinite(Neff);
+      const rStar=reachable? sReq*Neff/(1-sReq):Infinity; return {key,label:SCEN[key].label,F,ceiling,sReq,reachable,rStar}; };
+    const cases=["slow","typical","fast"].map(calc);
+    const base=cases.find(c=>c.key===adoption);
+    const somLow=somOf(rLow,sam,base.Neff,base.F)||somOf(rLow,sam,Neff,base.F);
+    const sLow=somOf(rLow,sam,Neff,base.F), sHigh=somOf(rHigh,sam,Neff,base.F);
+
+    // win-rate evidence -> implied advantage
+    let rImplied=null;
+    if(winPct>0 && winPct<100){ const w=winPct/100; rImplied=w/(1-w); }
+    else if(winPct>=100){ rImplied=Infinity; }
+
+    // verdict for base
+    let tone="#2E8B6B", verdict="";
+    if(!isFinite(Neff)){ tone="#BB4A3A"; verdict="Add at least one competitor share — the effective-firm count drives everything."; }
+    else if(!base.reachable){ tone="#BB4A3A"; verdict="Under "+base.label.toLowerCase()+" adoption the target sits past the year-"+t+" ceiling ("+money(base.ceiling)+"). Not reachable by share capture — extend the horizon or lower the target."; }
+    else if(base.rStar<=rLow){ tone="#2E8B6B"; verdict="Holds across your whole defensible range — even at "+rLow.toFixed(1)+"x you'd clear it."; }
+    else if(base.rStar>=rHigh){ tone="#BB4A3A"; verdict="Needs a "+base.rStar.toFixed(2)+"x advantage, above your defensible ceiling ("+rHigh.toFixed(1)+"x). On these inputs the story doesn't hold."; }
+    else { tone="#B07D1E"; verdict="Hinges on a win advantage of at least "+base.rStar.toFixed(2)+"x. That is the load-bearing assumption to defend."; }
+    const toneKey = tone==="#2E8B6B"?"green":tone==="#BB4A3A"?"coral":"amber";
+
+    // confidence (input sourcing)
+    const tkeys=["sam","shares","target","adoption","advantage"];
+    let tvals=tkeys.map(k=>SRC_W[tags[k]]);
+    if(winPct>0) tvals.push(SRC_W["measured"]);
+    const conf=tvals.reduce((a,b)=>a+b,0)/tvals.length;
+    let confLabel="Mostly assumptions", confTone="#BB4A3A";
+    if(conf>=0.7){ confLabel="Well-sourced"; confTone="#2E8B6B"; }
+    else if(conf>=0.4){ confLabel="Mixed sourcing"; confTone="#B07D1E"; }
+    const guessCount=tkeys.filter(k=>tags[k]==="guessed").length;
+
+    // validation
+    const V=[];
+    if(!isFinite(Neff)) V.push(["error","No competitors entered — the model can't run."]);
+    if(sum>100) V.push(["error","Competitor shares sum to "+sum+"% (over 100). HHI is inflated; trim to real shares."]);
+    else if(sum<85) V.push(["info","Entered shares cover only "+sum+"% — the rest is treated as a fragmented tail, which can understate concentration."]);
+    if(isFinite(Neff)&&!base.reachable) V.push(["warn","Target exceeds the year-"+t+" ceiling under the base case — unreachable regardless of advantage."]);
+    if((rHigh-rLow)>2.4) V.push(["warn","Your advantage range ("+rLow.toFixed(1)+"x–"+rHigh.toFixed(1)+"x) is very wide — the answer is barely constrained. Narrow it to a range you'd defend."]);
+    if(guessCount>=4) V.push(["warn","Underpowered: "+guessCount+" of 5 inputs are guesses. Treat the output as directional, not a forecast."]);
+    const reach=cases.filter(c=>c.reachable).length;
+    if(reach>0 && reach<3) V.push(["info","The target flips between reachable and not across adoption scenarios — the answer is highly sensitive to how fast the market adopts."]);
+    if(rImplied!==null && isFinite(rImplied) && base.reachable){
+      if(rImplied>=base.rStar) V.push(["ok","Observed win data implies a "+rImplied.toFixed(2)+"x advantage, which meets the "+base.rStar.toFixed(2)+"x the target requires."]);
+      else V.push(["warn","Observed win data implies only "+rImplied.toFixed(2)+"x, short of the "+base.rStar.toFixed(2)+"x the target requires."]);
+    }
+    if(V.length===0) V.push(["ok","No structural issues flagged. Inputs are internally consistent."]);
+
+    // narrative
+    const advPhrase = !isFinite(Neff) ? "" :
+      !base.reachable ? "no advantage is enough — the target is past the adoption ceiling for this horizon" :
+      "a win advantage of at least "+base.rStar.toFixed(2)+"x over the average of "+clean.length+" competitors (a "+(base.sReq*100).toFixed(1)+"% long-run share)";
+    const holds = !isFinite(Neff)||!base.reachable ? "" :
+      base.rStar<=rLow ? "Your defensible range clears that comfortably." :
+      base.rStar>=rHigh ? "Your defensible range tops out at "+rHigh.toFixed(1)+"x, so on these inputs it does not hold." :
+      "Your defensible range runs "+rLow.toFixed(1)+"x–"+rHigh.toFixed(1)+"x, so it holds only if you land near the top of it.";
+    const narrative = "For "+money(target)+" of obtainable market by year "+t+" under "+base.label.toLowerCase()+" adoption to hold, you would need "+advPhrase+". "+holds+" Input sourcing is "+confLabel.toLowerCase()+".";
+
+    return {clean,sum,hhi,Neff,cr4,conc,cases,base,sLow,sHigh,rImplied,tone,toneKey,verdict,conf,confLabel,confTone,narrative,valid:V};
+  },[sam,shares,target,t,adoption,rLow,rHigh,winPct,tags]);
+
+  const setShare=(i,v)=>setShares(pr=>pr.map((s,idx)=>idx===i?v:s));
+  const addShare=()=>setShares(pr=>[...pr,5]);
+  const rmShare=(i)=>setShares(pr=>pr.filter((_,idx)=>idx!==i));
+  const chgLow=(v)=>{ setRLow(Math.min(v,rHigh)); };
+  const chgHigh=(v)=>{ setRHigh(Math.max(v,rLow)); };
+  const stamp=()=>new Date().toISOString().slice(0,10);
+  const rq=(v)=>v.reachable? v.rStar.toFixed(2)+"x" : "unreachable";
+
+  const assumptionRows=()=>([
+    ["Serviceable available market (SAM)",money(sam),tags.sam],
+    ["Competitor shares (count / sum)",d.clean.length+" / "+d.sum+"%",tags.shares],
+    ["Target obtainable market",money(target),tags.target],
+    ["Adoption scenario (base)",d.base.label+" (year "+t+")",tags.adoption],
+    ["Defensible advantage range",rLow.toFixed(1)+"x to "+rHigh.toFixed(1)+"x",tags.advantage],
+    ["Observed win rate vs avg competitor", winPct>0? winPct+"%":"not provided", winPct>0?"measured":"—"],
+  ]);
+
+  const exportXlsx=()=>{
+    if(typeof XLSX==="undefined"){ setExpMsg({text:"Spreadsheet library didn't load - reconnect and reopen.",tone:"var(--red)"}); return; }
+    try{
+      const A=[["Market Story — Diligence Summary",""],["Generated",stamp()],["",""],
+        ["REQUIRED WIN ADVANTAGE (base case)", d.base.reachable? d.base.rStar.toFixed(2)+"x":"unreachable"],
+        ["Confidence (input sourcing)", d.confLabel+" ("+Math.round(d.conf*100)+"%)"],["",""],
+        ["ASSUMPTIONS (input / value / source)",""]];
+      assumptionRows().forEach(r=>A.push([r[0],r[1],r[2]]));
+      A.push(["",""],["SCENARIOS (adoption / required advantage / required share)",""]);
+      d.cases.forEach(c=>A.push([c.label, rq(c), c.reachable?(c.sReq*100).toFixed(1)+"%":"-"]));
+      A.push(["",""],["MARKET",""],["HHI",isFinite(d.hhi)?Math.round(d.hhi):""],["Structure",d.conc],
+        ["CR4, %",d.cr4],["Effective # of firms",isFinite(d.Neff)?Number(d.Neff.toFixed(2)):""]);
+      A.push(["",""],["WHAT WOULD HAVE TO BE TRUE",d.narrative]);
+      A.push(["",""],["Model","required advantage r*: r/(N_eff+r) share x Bass adoption, solved for the target"],
+        ["Basis","Bell-Keeney-Little attraction theorem (1975); Bass diffusion (1969); p,q benchmark Sultan-Farley-Lehmann (1990)"],
+        ["Note","r* is computed; whether you can clear it is judgment. Source tags describe input quality, not probability of success."]);
+      const ws1=XLSX.utils.aoa_to_sheet(A); ws1["!cols"]=[{wch:46},{wch:34},{wch:14}];
+      const comp=[["Competitor","Share, %"]].concat(d.clean.map((s,i)=>["Competitor "+(i+1),s]));
+      comp.push(["Fragmented / unaccounted",Math.max(0,100-d.sum)]);
+      const ws2=XLSX.utils.aoa_to_sheet(comp); ws2["!cols"]=[{wch:26},{wch:12}];
+      const wb=XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb,ws1,"Diligence"); XLSX.utils.book_append_sheet(wb,ws2,"Competitors");
+      XLSX.writeFile(wb,"market-story_"+stamp()+".xlsx");
+      setExpMsg({text:"Spreadsheet downloaded.",tone:"var(--green)"});
+    }catch(e){ setExpMsg({text:"Export failed: "+e.message,tone:"var(--red)"}); }
+  };
+
+  const exportPdf=()=>{
+    const J=window.jspdf&&window.jspdf.jsPDF;
+    if(!J){ setExpMsg({text:"PDF library didn't load - reconnect and reopen.",tone:"var(--red)"}); return; }
+    try{
+      const doc=new J({unit:"pt",format:"letter"});
+      const M=54; let y=60; const W=doc.internal.pageSize.getWidth();
+      const blue=[31,78,130], ink=[24,43,62], muted=[90,109,128], red=[187,74,58], green=[46,139,107], gold=[176,125,30];
+      const srcColor=(s)=> s==="measured"?green : s==="estimated"?gold : s==="guessed"?red : muted;
+      doc.setFont("courier","normal");doc.setFontSize(9);doc.setTextColor.apply(doc,blue);
+      doc.text("MARKET STORY — DILIGENCE VIEW",M,y); y+=24;
+      doc.setFont("times","normal");doc.setFontSize(23);doc.setTextColor.apply(doc,ink);
+      doc.text("What would have to be true?",M,y); y+=16;
+      doc.setFont("courier","normal");doc.setFontSize(9);doc.setTextColor.apply(doc,muted);
+      doc.text("Generated "+stamp(),M,y); y+=28;
+      doc.setFont("courier","bold");doc.setFontSize(24);doc.setTextColor.apply(doc,blue);
+      doc.text((d.base.reachable? d.base.rStar.toFixed(2)+"x":"unreachable")+"  required win advantage",M,y);
+      doc.setFont("courier","normal");doc.setFontSize(9.5);doc.setTextColor.apply(doc,muted);
+      doc.text("to reach "+money(target)+" by year "+t+" under "+d.base.label.toLowerCase()+" adoption",M,y+15); y+=36;
+      doc.setDrawColor(210,216,224);doc.line(M,y,W-M,y); y+=20;
+
+      const head=(tt)=>{y+=4;doc.setFont("courier","bold");doc.setFontSize(9);doc.setTextColor.apply(doc,blue);doc.text(tt,M,y);y+=15;};
+      head("ASSUMPTIONS");
+      assumptionRows().forEach(r=>{
+        doc.setFont("courier","normal");doc.setFontSize(10);doc.setTextColor.apply(doc,muted);
+        doc.text(r[0],M,y);
+        doc.setTextColor.apply(doc,ink); doc.text(String(r[1]),M+300,y);
+        doc.setFontSize(8);doc.setTextColor.apply(doc,srcColor(r[2])); doc.text(String(r[2]).toUpperCase(),W-M,y,{align:"right"});
+        y+=16;
+      });
+      head("SCENARIOS");
+      doc.setFont("courier","normal");doc.setFontSize(9);doc.setTextColor.apply(doc,muted);
+      doc.text("adoption",M,y); doc.text("required advantage",M+180,y); doc.text("required share",W-M,y,{align:"right"}); y+=14;
+      d.cases.forEach(c=>{ doc.setTextColor.apply(doc, c.key===d.base.key?blue:ink); doc.setFontSize(10);
+        doc.text(c.label,M,y); doc.text(rq(c),M+180,y); doc.text(c.reachable?(c.sReq*100).toFixed(1)+"%":"-",W-M,y,{align:"right"}); y+=16; });
+      head("WHAT WOULD HAVE TO BE TRUE");
+      doc.setFont("times","normal");doc.setFontSize(10.5);doc.setTextColor.apply(doc,ink);
+      const nl=doc.splitTextToSize(d.narrative,W-2*M); doc.text(nl,M,y); y+=nl.length*13+8;
+      doc.setFont("courier","normal");doc.setFontSize(9);doc.setTextColor.apply(doc,d.toneKey==="green"?green:d.toneKey==="coral"?red:gold);
+      const vl=doc.splitTextToSize("Verdict: "+d.verdict,W-2*M); doc.text(vl,M,y); y+=vl.length*12+10;
+      doc.setDrawColor(210,216,224);doc.line(M,y,W-M,y); y+=14;
+      doc.setFont("times","italic");doc.setFontSize(8.5);doc.setTextColor.apply(doc,muted);
+      const note="Required win advantage is computed from a Bell-Keeney-Little attraction share form and a Bass adoption curve (p,q per scenario, benchmarked to Sultan-Farley-Lehmann 1990). The tool reports the advantage you would NEED, not one it can measure; whether you can clear it is judgment. Source tags describe how well each input is grounded, not the probability the story is right. Bass tends to overestimate early years.";
+      doc.text(doc.splitTextToSize(note,W-2*M),M,y);
+      doc.save("market-story_"+stamp()+".pdf");
+      setExpMsg({text:"Investor PDF downloaded.",tone:"var(--green)"});
+    }catch(e){ setExpMsg({text:"Export failed: "+e.message,tone:"var(--red)"}); }
+  };
+
+  const segs=[...shares].filter(s=>s>0).sort((a,b)=>b-a);
+  const tail=Math.max(0,100-segs.reduce((a,b)=>a+b,0));
+  const vColor=(k)=> k==="error"?"var(--red)":k==="warn"?"var(--gold)":k==="ok"?"var(--green)":"var(--faint)";
+
+  return (
+   <div className="wrap">
+     <div className="eyebrow">Market Story — Diligence View</div>
+     <h1 className="title">What would have to be <em>true</em>?</h1>
+     <p className="lede">Rather than assert a market share, this asks what your story requires — the win advantage you'd
+       need over the field, across adoption scenarios — and tags every input by how well you actually know it. It's a way
+       to challenge the story with evidence, not accept one modeled number.</p>
+     <div className="rule"></div>
+
+     <div className="grid">
+       <div>
+         <div className="card">
+           <div className="card-eyebrow">The market</div>
+           <Field label="Serviceable available market" hint="annual, $">
+             <input type="number" value={sam} onChange={(e)=>setSam(parseFloat(e.target.value)||0)}/>
+             <div className="num-echo">{money(sam)}</div>
+             <SourceTag value={tags.sam} onChange={(v)=>setTag("sam",v)}/>
+           </Field>
+           <Field label="Competitor shares" hint={"entered: "+d.sum+"%"}>
+             <div style={{display:"flex",flexDirection:"column",gap:8}}>
+               {shares.map((s,i)=>(
+                 <div className="share-row" key={i}>
+                   <span className="share-idx">{i+1}</span>
+                   <input type="range" min={0} max={100} step={1} value={s} onChange={(e)=>setShare(i,parseFloat(e.target.value))} style={{flex:1}}/>
+                   <span className="share-pct">{s}%</span>
+                   <button className="share-x" onClick={()=>rmShare(i)} aria-label={"Remove competitor "+(i+1)}>x</button>
+                 </div>
+               ))}
+             </div>
+             <button className="add-btn" onClick={addShare}>+ Add competitor</button>
+             {d.sum>100&&<div className="warn-line">Shares sum above 100% - HHI is inflated. Trim to real shares.</div>}
+             <SourceTag value={tags.shares} onChange={(v)=>setTag("shares",v)}/>
+           </Field>
+         </div>
+
+         <div className="card">
+           <div className="card-eyebrow">Target & adoption</div>
+           <Field label="Target obtainable market" hint="what you want to defend, $">
+             <input type="number" value={target} onChange={(e)=>setTarget(parseFloat(e.target.value)||0)}/>
+             <div className="num-echo">{money(target)}</div>
+             <SourceTag value={tags.target} onChange={(v)=>setTag("target",v)}/>
+           </Field>
+           <Field label="Horizon" hint="years">
+             <Slider value={t} min={1} max={10} step={1} onChange={setT} fmt={v=>v+" yr"}/>
+           </Field>
+           <Field label="Base adoption scenario" hint="market receptivity">
+             <div className="seg">
+               {["slow","typical","fast"].map(k=>(
+                 <button key={k} className={adoption===k?"on":""} onClick={()=>setAdoption(k)}>{SCEN[k].label}</button>
+               ))}
+             </div>
+             <div className="note-line">Scenario buckets replace a single fitted curve. Typical is the Sultan-Farley-Lehmann benchmark; slow/fast bracket it. All three are computed in the scenario table.</div>
+             <SourceTag value={tags.adoption} onChange={(v)=>setTag("adoption",v)}/>
+           </Field>
+         </div>
+
+         <div className="card">
+           <div className="card-eyebrow">Your advantage</div>
+           <div className="note-line" style={{marginTop:0,marginBottom:14}}>Win advantage = your total pull on a customer's choice versus the <i>average</i> competitor. 1.0 = at par. Set the range you'd defend.</div>
+           <Field label="Defensible range — low" hint="x avg competitor">
+             <Slider value={rLow} min={0.2} max={4} step={0.1} onChange={chgLow} fmt={v=>v.toFixed(1)+"x"}/>
+           </Field>
+           <Field label="Defensible range — high" hint="x avg competitor">
+             <Slider value={rHigh} min={0.2} max={4} step={0.1} onChange={chgHigh} fmt={v=>v.toFixed(1)+"x"}/>
+           </Field>
+           <SourceTag value={tags.advantage} onChange={(v)=>setTag("advantage",v)}/>
+           <Field label="Observed win rate vs avg competitor" hint="optional evidence, %">
+             <input type="number" value={winPct} onChange={(e)=>setWinPct(clamp(parseFloat(e.target.value)||0,0,100))}/>
+             <div className="note-line">{winPct>0 && d.rImplied!==null && isFinite(d.rImplied)
+               ? "Implied win advantage from this: "+d.rImplied.toFixed(2)+"x."
+               : "If you have real head-to-head win data, it converts to a measured advantage."}</div>
+           </Field>
+         </div>
+
+         <div className="card">
+           <div className="card-eyebrow">Validation & confidence</div>
+           <div className="conf">
+             <span className="srclabel">input sourcing</span>
+             <div className="conf-track"><div className="conf-fill" style={{width:Math.round(d.conf*100)+"%",background:d.confTone}}></div></div>
+             <span className="conf-txt" style={{color:d.confTone}}>{d.confLabel}</span>
+           </div>
+           <ValidationList items={d.valid}/>
+         </div>
+       </div>
+
+       <div>
+         <div className="card">
+           <div className="card-eyebrow">What would have to be true</div>
+           <div className="narrative">{d.narrative}</div>
+         </div>
+
+         <div className="card">
+           <div className="export-bar">
+             {expMsg.text&&<span className="exp-msg" style={{color:expMsg.tone}}>{expMsg.text}</span>}
+             <button className="exp-btn" onClick={exportXlsx}>Download .xlsx</button>
+             <button className="exp-btn" onClick={exportPdf}>Investor PDF</button>
+           </div>
+           <div className="hero-label">Required win advantage — base case</div>
+           <div className="hero-figure">{d.base.reachable? d.base.rStar.toFixed(2)+"x" : "—"}</div>
+           <div className="hero-sub">{d.base.reachable
+             ? "You'd need about "+d.base.rStar.toFixed(2)+"x the average competitor's pull to reach "+money(target)+" by year "+t+" under "+d.base.label.toLowerCase()+" adoption."
+             : "No advantage reaches "+money(target)+" by year "+t+" under "+d.base.label.toLowerCase()+" adoption — it's past the ceiling."}</div>
+           <div className="verdict" style={{color:d.tone,borderColor:d.tone}}>{d.verdict}</div>
+         </div>
+
+         <div className="card">
+           <div className="card-eyebrow">Scenarios — required advantage by adoption case</div>
+           <table className="cases">
+             <thead><tr><th className="l">Case</th><th>Required advantage</th><th>Required share</th><th>vs your range</th></tr></thead>
+             <tbody>
+               {d.cases.map(c=>{
+                 const verdict = !c.reachable?"unreachable":c.rStar<=rHigh?(c.rStar<=rLow?"clears":"upper end"):"exceeds";
+                 const vc = !c.reachable?"var(--red)":c.rStar<=rLow?"var(--green)":c.rStar<=rHigh?"var(--gold)":"var(--red)";
+                 return (<tr key={c.key} className={c.key===d.base.key?"base":""}>
+                   <td className="name l">{c.label}{c.key===d.base.key?" •":""}</td>
+                   <td>{rq(c)}</td>
+                   <td>{c.reachable?(c.sReq*100).toFixed(1)+"%":"-"}</td>
+                   <td style={{color:vc}}>{verdict}</td>
+                 </tr>);
+               })}
+             </tbody>
+           </table>
+           <div className="note-line">The dot marks your base case. A wide spread across rows means the story is highly sensitive to how fast the market adopts.</div>
+         </div>
+
+         <div className="card">
+           <div className="card-eyebrow">Sensitivity — base case</div>
+           <div className="chart-wrap">
+             <Chart SAM={sam} Neff={d.Neff} F={d.base.F} target={target} rLow={rLow} rHigh={rHigh} rStar={d.base.rStar} reachable={d.base.reachable} tone={d.tone}/>
+           </div>
+           <div className="interval">Across your range (r {rLow.toFixed(1)}x–{rHigh.toFixed(1)}x), market captured by year {t}: <b>{money(d.sLow)}</b> to <b>{money(d.sHigh)}</b>.</div>
+         </div>
+
+         <div className="card">
+           <div className="card-eyebrow">Market structure</div>
+           <div className="market-bar">
+             {segs.map((s,i)=>(<div className="market-seg" key={i} style={{width:s+"%",background:SEG_COLORS[i%SEG_COLORS.length]}} title={"Competitor "+(i+1)+": "+s+"%"}></div>))}
+             {tail>0&&<div className="market-tail" style={{width:tail+"%"}} title={"Fragmented: "+tail+"%"}></div>}
+           </div>
+           <div className="market-legend">
+             <span className="legend-item"><span className="legend-dot" style={{background:SEG_COLORS[0]}}></span>ranked competitors</span>
+             {tail>0&&<span className="legend-item"><span className="legend-dot" style={{backgroundImage:"repeating-linear-gradient(45deg,#C3CED9 0 3px,#E4EAF1 3px 6px)"}}></span>fragmented tail {tail}%</span>}
+           </div>
+           <div className="stats">
+             <div className="stat"><div className="stat-label">HHI</div><div className="stat-val">{isFinite(d.hhi)?Math.round(d.hhi).toLocaleString():"-"}</div></div>
+             <div className="stat"><div className="stat-label">Structure</div><div className="stat-val" style={{fontSize:13,color:d.hhi>=2500?"var(--blue-deep)":"var(--text)"}}>{d.conc}</div></div>
+             <div className="stat"><div className="stat-label">CR4</div><div className="stat-val">{d.cr4.toFixed(0)}%</div></div>
+             <div className="stat"><div className="stat-label">Eff. firms</div><div className="stat-val">{isFinite(d.Neff)?d.Neff.toFixed(1):"-"}</div></div>
+           </div>
+           <div className="equation">required advantage r*: solve  SAM x [ r/(N_eff+r) ] x F<sub>Bass</sub>(t)  =  target</div>
+         </div>
+
+         <p className="footnote">
+           Share form from the <i>Bell-Keeney-Little attraction theorem</i> (1975); adoption from the <i>Bass model</i>
+           (1969) in scenario buckets rather than one fitted curve. The tool reports the win advantage you'd <i>need</i>,
+           not one it can measure — whether you clear it stays your judgment, which is why every input carries a source
+           tag and the confidence score reflects input quality, not odds of success. Deferred until you have the data:
+           segment-level adoption curves and adjacent-market comparables. Bass overestimates early years, and the
+           attraction form assumes you compete for the same customers on substitutable terms.
+         </p>
+       </div>
+     </div>
+   </div>
+  );
+}
+
+function ValidationList({items}){
+  const vColor=(k)=> k==="error"?"var(--red)":k==="warn"?"var(--gold)":k==="ok"?"var(--green)":"var(--faint)";
+  return (<div>{items.map((it,i)=>(
+    <div className="valid-item" key={i}>
+      <span className="valid-dot" style={{background:vColor(it[0])}}></span>
+      <span>{it[1]}</span>
+    </div>
+  ))}</div>);
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
